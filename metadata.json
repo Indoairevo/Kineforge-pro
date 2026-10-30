@@ -1,0 +1,6 @@
+{
+  "name": "KineForge Studio",
+  "description": "Professional non-linear video editing software with multi-track timeline, real-time HTML5 Canvas & WebAudio compositing, color grading, transitions, AI subtitles and voiceover, and persistent project database.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
