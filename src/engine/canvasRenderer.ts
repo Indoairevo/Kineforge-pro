@@ -15,13 +15,14 @@ export function renderCompositeFrame(
   clips: TimelineClip[],
   mediaElements: Map<string, HTMLVideoElement | HTMLImageElement>,
   selectedClipId: string | null,
-  showSafeGuides: boolean = false
+  showSafeGuides: boolean = false,
+  canvasBackgroundColor: string = '#050811'
 ): void {
   ctx.save();
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-  // Base dark studio canvas background
-  ctx.fillStyle = '#050811';
+  // Fill the canvas before compositing clips so transparent or empty regions remain intentional.
+  ctx.fillStyle = canvasBackgroundColor;
   ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
   const anySolo = tracks.some((t) => t.solo);

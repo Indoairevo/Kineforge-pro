@@ -10,6 +10,8 @@
 
   body {
     font-family: var(--font-sans);
+    min-width: 320px;
+    overflow: hidden;
   }
 
   h1, h2, h3, h4, .font-display {
@@ -19,6 +21,22 @@
   .font-mono, .tabular-nums {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (max-width: 767px) {
+  button,
+  input,
+  select {
+    touch-action: manipulation;
+  }
+
+  .mobile-timeline-panel > div {
+    height: 100%;
+  }
+
+  .mobile-timeline-panel .w-40 {
+    width: 7.5rem;
   }
 }
 

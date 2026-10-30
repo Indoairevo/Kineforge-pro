@@ -15,12 +15,17 @@ import {
   detectBeatMarkers,
   duplicateClipInTrack,
   estimateExportFileSizeMB,
+  addTimelineMarker,
+  findNextTimelineMarker,
   formatTimecode,
+  groupClips,
   mergeAdjacentClips,
+  removeNearestTimelineMarker,
   pushHistoryState,
   redoHistoryState,
   splitClipAtTime,
   trimClipBounds,
+  ungroupClips,
   undoHistoryState,
 } from './timelineLogic';
 import { TimelineClip } from '../types/editor';
@@ -54,6 +59,18 @@ test('formatTimecode renders tabular MM:SS:FF accurately', () => {
   assert.equal(formatTimecode(0, 30), '00:00:00');
   assert.equal(formatTimecode(65.5, 30), '01:05:15');
   assert.equal(formatTimecode(-4, 24), '00:00:00');
+});
+
+test('timeline markers are sorted and do not duplicate nearby playhead positions', () => {
+  assert.deepEqual(addTimelineMarker([4, 1], 2.3456), [1, 2.346, 4]);
+  assert.deepEqual(addTimelineMarker([1, 2.35], 2.346), [1, 2.35]);
+});
+
+test('timeline marker navigation wraps and removes the nearest marker', () => {
+  assert.equal(findNextTimelineMarker([6, 1, 3], 3.1), 6);
+  assert.equal(findNextTimelineMarker([6, 1, 3], 6.1), 1);
+  assert.deepEqual(removeNearestTimelineMarker([1, 3, 6], 3.2), [1, 6]);
+  assert.deepEqual(removeNearestTimelineMarker([], 3), []);
 });
 
 test('splitClipAtTime splits a clip into two contiguous parts at playhead', () => {
@@ -107,6 +124,31 @@ test('duplicateClipInTrack appends a copy immediately after the clip', () => {
   assert.equal(result[1].id, 'c1-copy');
   assert.equal(result[1].startTime, 5.5);
   assert.equal(result[1].duration, 4);
+});
+
+test('groupClips assigns one shared group id without changing clip placement', () => {
+  const c1 = makeMockClip({ id: 'c1', startTime: 1, duration: 2 });
+  const c2 = makeMockClip({ id: 'c2', trackId: 'v2', startTime: 4, duration: 3 });
+  const grouped = groupClips([c1, c2], ['c1', 'c2'], () => 'group-1');
+
+  assert.equal(grouped[0].groupId, 'group-1');
+  assert.equal(grouped[1].groupId, 'group-1');
+  assert.equal(grouped[0].startTime, 1);
+  assert.equal(grouped[1].startTime, 4);
+});
+
+test('ungroupClips removes the whole selected group and ignores ungrouped clips', () => {
+  const grouped = [
+    makeMockClip({ id: 'c1', groupId: 'group-1' }),
+    makeMockClip({ id: 'c2', groupId: 'group-1' }),
+    makeMockClip({ id: 'c3' }),
+  ];
+  const ungrouped = ungroupClips(grouped, ['c1']);
+
+  assert.equal(ungrouped[0].groupId, undefined);
+  assert.equal(ungrouped[1].groupId, undefined);
+  assert.equal(ungrouped[2].groupId, undefined);
+  assert.deepEqual(ungroupClips(grouped, ['c3']), grouped);
 });
 
 test('applyMagneticRipple closes gaps between clips on target track', () => {

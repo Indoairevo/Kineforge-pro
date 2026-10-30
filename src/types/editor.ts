@@ -165,6 +165,7 @@ export interface TimelineClip {
   id: string;
   assetId: string;
   trackId: string;
+  groupId?: string;
   name: string;
   type: TrackType;
   startTime: number;      // position on timeline (seconds)
@@ -207,6 +208,7 @@ export interface VideoProject {
   aspectRatio: AspectRatioKey;
   customWidth: number;
   customHeight: number;
+  canvasBackgroundColor?: string;
   magneticTimeline: boolean;
   snappingEnabled: boolean;
   tracks: Track[];

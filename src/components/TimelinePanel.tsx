@@ -19,6 +19,10 @@ import {
   ArrowDown,
   RotateCcw,
   ArrowLeftRight,
+  Clipboard,
+  ClipboardPaste,
+  Flag,
+  SkipForward,
 } from 'lucide-react';
 import { TimelineClip, Track, TrackType } from '../types/editor';
 import { calculateSnapTime, formatTimecode } from '../engine/timelineLogic';
@@ -29,19 +33,25 @@ interface TimelinePanelProps {
   playheadTime: number;
   timelineDuration: number;
   selectedClipId: string | null;
+  selectedClipIds: string[];
   magneticTimeline: boolean;
   snappingEnabled: boolean;
   beatMarkers: number[];
   onSeek: (time: number) => void;
-  onSelectClip: (clipId: string | null) => void;
+  onSelectClip: (clipId: string | null, additive?: boolean) => void;
   onSplitAtPlayhead: () => void;
   onDuplicateSelected: () => void;
+  onCopySelected: () => void;
+  onPasteClip: () => void;
   onDeleteSelected: () => void;
   onMergeAdjacent: () => void;
   onToggleFreezeSelected: () => void;
   onToggleReverseSelected: () => void;
   onToggleMagnetic: () => void;
   onToggleSnapping: () => void;
+  onAddMarker: () => void;
+  onRemoveNearestMarker: () => void;
+  onJumpToNextMarker: () => void;
   onUpdateTrack: (trackId: string, updater: (t: Track) => Track) => void;
   onReorderTrack: (trackId: string, direction: 'up' | 'down') => void;
   onAddTrack: (type: TrackType) => void;
@@ -56,6 +66,7 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
   playheadTime,
   timelineDuration,
   selectedClipId,
+  selectedClipIds,
   magneticTimeline,
   snappingEnabled,
   beatMarkers,
@@ -63,12 +74,17 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
   onSelectClip,
   onSplitAtPlayhead,
   onDuplicateSelected,
+  onCopySelected,
+  onPasteClip,
   onDeleteSelected,
   onMergeAdjacent,
   onToggleFreezeSelected,
   onToggleReverseSelected,
   onToggleMagnetic,
   onToggleSnapping,
+  onAddMarker,
+  onRemoveNearestMarker,
+  onJumpToNextMarker,
   onUpdateTrack,
   onReorderTrack,
   onAddTrack,
@@ -211,6 +227,27 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
 
           <button
             type="button"
+            onClick={onCopySelected}
+            disabled={!selectedClipId}
+            title="Copy selected clip (Ctrl/Cmd+C)"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-white dark:bg-[#1E2230] border border-slate-200 dark:border-[#2D3348] text-slate-800 dark:text-slate-100 disabled:opacity-40 hover:border-cyan-400 transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:cursor-not-allowed"
+          >
+            <Clipboard className="w-3.5 h-3.5" />
+            <span>Copy</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onPasteClip}
+            title="Paste copied clip (Ctrl/Cmd+V)"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-white dark:bg-[#1E2230] border border-slate-200 dark:border-[#2D3348] text-slate-800 dark:text-slate-100 hover:border-cyan-400 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <ClipboardPaste className="w-3.5 h-3.5" />
+            <span>Paste</span>
+          </button>
+
+          <button
+            type="button"
             onClick={onToggleFreezeSelected}
             disabled={!selectedClipId}
             title="Freeze frame on selected clip"
@@ -270,6 +307,37 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
             }`}
           >
             <span>Snap Guides</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onAddMarker}
+            title="Add a marker at the playhead"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded border border-cyan-400/60 bg-cyan-400/10 text-cyan-500 dark:text-cyan-300 text-[11px] font-medium whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <Flag className="w-3.5 h-3.5" />
+            <span>Mark</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onRemoveNearestMarker}
+            disabled={beatMarkers.length === 0}
+            title="Remove the nearest marker"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-200 dark:border-[#2D3348] bg-white dark:bg-[#1E2230] text-slate-600 dark:text-slate-300 disabled:opacity-40 text-[11px] font-medium whitespace-nowrap shrink-0 cursor-pointer disabled:cursor-not-allowed"
+          >
+            <span>Remove Mark</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onJumpToNextMarker}
+            disabled={beatMarkers.length === 0}
+            title="Jump to the next marker"
+            aria-label="Jump to next marker"
+            className="inline-flex items-center justify-center w-7 h-7 rounded border border-slate-200 dark:border-[#2D3348] bg-white dark:bg-[#1E2230] text-slate-600 dark:text-slate-300 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+          >
+            <SkipForward className="w-3.5 h-3.5" />
           </button>
 
           <div className="flex items-center gap-1">
@@ -478,7 +546,7 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
                     {trackClips.map((clip, clipIdx) => {
                       const leftPx = clip.startTime * pixelsPerSecond;
                       const widthPx = Math.max(28, clip.duration * pixelsPerSecond);
-                      const isSelected = clip.id === selectedClipId;
+                      const isSelected = selectedClipIds.includes(clip.id);
                       const frameTileCount = Math.max(2, Math.min(10, Math.floor(widthPx / 52)));
 
                       const colorClasses =
@@ -504,7 +572,7 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
                             aria-label={`Timeline clip ${clip.name}`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              onSelectClip(clip.id);
+                              onSelectClip(clip.id, e.shiftKey || e.ctrlKey || e.metaKey);
                             }}
                             onMouseDown={(e) => handleClipPointerDown(e, clip, 'move')}
                             style={{

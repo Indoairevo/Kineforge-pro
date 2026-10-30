@@ -34,6 +34,7 @@ interface CanvasPreviewProps {
   aspectRatio: AspectRatioKey;
   customWidth: number;
   customHeight: number;
+  canvasBackgroundColor?: string;
   playheadTime: number;
   timelineDuration: number;
   isPlaying: boolean;
@@ -46,6 +47,7 @@ interface CanvasPreviewProps {
   onSeek: (time: number) => void;
   onStepFrame: (deltaFrames: number) => void;
   onToggleLoop: () => void;
+  onChangeCanvasBackground: (color: string) => void;
   onUpdateClipPosition: (clipId: string, newX: number, newY: number) => void;
   onQuickSplit?: () => void;
   onQuickCycleSpeed?: () => void;
@@ -64,6 +66,7 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = ({
   aspectRatio,
   customWidth,
   customHeight,
+  canvasBackgroundColor = '#050811',
   playheadTime,
   timelineDuration,
   isPlaying,
@@ -76,6 +79,7 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = ({
   onSeek,
   onStepFrame,
   onToggleLoop,
+  onChangeCanvasBackground,
   onUpdateClipPosition,
   onQuickSplit,
   onQuickCycleSpeed,
@@ -155,7 +159,8 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = ({
       clips,
       mediaCacheRef.current,
       selectedClipId,
-      showSafeGuides
+      showSafeGuides,
+      canvasBackgroundColor
     );
 
     if (isPlaying) {
@@ -163,7 +168,7 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = ({
     } else {
       setMeterLevels({ left: 0, right: 0 });
     }
-  }, [playheadTime, renderW, renderH, tracks, clips, selectedClipId, showSafeGuides, isPlaying]);
+  }, [playheadTime, renderW, renderH, tracks, clips, selectedClipId, showSafeGuides, isPlaying, canvasBackgroundColor]);
 
   // Direct Canvas Drag-to-Position for Selected Clip
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -226,6 +231,30 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = ({
             <option value={0.5}>1/2 Proxy (Smooth)</option>
             <option value={0.25}>1/4 Fast Proxy</option>
           </select>
+
+          <label className="hidden sm:flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+            Canvas
+            <input
+              type="color"
+              aria-label="Canvas background color"
+              value={canvasBackgroundColor}
+              onChange={(e) => onChangeCanvasBackground(e.target.value)}
+              className="w-6 h-5 rounded cursor-pointer border-0 bg-transparent"
+            />
+          </label>
+          <div className="hidden sm:flex items-center gap-1">
+            {['#050811', '#FFFFFF', '#0F172A', '#FDE68A', '#BAE6FD'].map((color) => (
+              <button
+                key={color}
+                type="button"
+                aria-label={`Set canvas background to ${color}`}
+                title={`Canvas ${color}`}
+                onClick={() => onChangeCanvasBackground(color)}
+                className={`w-4 h-4 rounded-full border ${canvasBackgroundColor.toUpperCase() === color ? 'border-cyan-400 ring-1 ring-cyan-400' : 'border-slate-300 dark:border-slate-600'}`}
+                style={{ backgroundColor: color }}
+              />
+            ))}
+          </div>
 
           <button
             type="button"

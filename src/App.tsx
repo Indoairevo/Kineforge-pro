@@ -17,6 +17,7 @@ import {
 import { createStarterProject } from './data/defaultCatalog';
 import {
   applyMagneticRipple,
+  addTimelineMarker,
   calculateTimelineDuration,
   createDefaultAudio,
   createDefaultColor,
@@ -26,11 +27,14 @@ import {
   createHistoryStack,
   detectBeatMarkers,
   duplicateClipInTrack,
+  findNextTimelineMarker,
   HistoryStack,
   mergeAdjacentClips,
   pushHistoryState,
+  removeNearestTimelineMarker,
   redoHistoryState,
   splitClipAtTime,
+  structuredCloneClip,
   trimClipBounds,
   undoHistoryState,
 } from './engine/timelineLogic';
@@ -62,6 +66,8 @@ export default function App() {
   const project = history.present;
 
   const [selectedClipId, setSelectedClipId] = useState<string | null>('clip-v1-drive');
+  const [selectedClipIds, setSelectedClipIds] = useState<string[]>(['clip-v1-drive']);
+  const [copiedClip, setCopiedClip] = useState<TimelineClip | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<string>('folder-all');
   const [leftDockTab, setLeftDockTab] = useState<LeftDockTab>('media');
   const [activeNavSection, setActiveNavSection] = useState<
@@ -94,6 +100,14 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const timelineDuration = calculateTimelineDuration(project.clips);
   const selectedClip = project.clips.find((c) => c.id === selectedClipId) || null;
+
+  useEffect(() => {
+    if (!selectedClipId) {
+      setSelectedClipIds([]);
+      return;
+    }
+    setSelectedClipIds((ids) => (ids.includes(selectedClipId) ? ids : [selectedClipId]));
+  }, [selectedClipId]);
 
   // Toggle dark class on <html>
   useEffect(() => {
@@ -221,19 +235,78 @@ export default function App() {
     }));
   }, [selectedClipId, commitProjectChange]);
 
+  const handleCopySelected = useCallback(() => {
+    if (!selectedClipId) return;
+    const clip = project.clips.find((candidate) => candidate.id === selectedClipId);
+    if (clip) setCopiedClip(structuredCloneClip(clip));
+  }, [selectedClipId, project.clips]);
+
+  const handlePasteClip = useCallback(() => {
+    if (!copiedClip) return;
+    const pastedClip = {
+      ...structuredCloneClip(copiedClip),
+      id: `clip_paste_${Date.now()}`,
+      name: `${copiedClip.name} Copy`,
+      startTime: Number((playheadRef.current || copiedClip.startTime + copiedClip.duration).toFixed(3)),
+    };
+    commitProjectChange((prev) => ({ ...prev, clips: [...prev.clips, pastedClip] }));
+    setSelectedClipId(pastedClip.id);
+  }, [copiedClip, commitProjectChange]);
+
+  const handleResetSelected = useCallback(() => {
+    if (!selectedClipId) return;
+    commitProjectChange((prev) => ({
+      ...prev,
+      clips: prev.clips.map((clip) =>
+        clip.id === selectedClipId
+          ? {
+              ...clip,
+              speed: 1,
+              reversed: false,
+              freezeFrame: false,
+              freezeTime: undefined,
+              transform: createDefaultTransform(),
+              color: createDefaultColor(),
+              effects: createDefaultEffects(),
+              transition: createDefaultTransition(),
+              audio: createDefaultAudio(),
+            }
+          : clip
+      ),
+    }));
+  }, [selectedClipId, commitProjectChange]);
+
   const handleDeleteSelected = useCallback(() => {
     if (!selectedClipId) return;
     commitProjectChange((prev) => {
-      const target = prev.clips.find((c) => c.id === selectedClipId);
-      const remaining = prev.clips.filter((c) => c.id !== selectedClipId);
-      const finalClips =
-        prev.magneticTimeline && target
-          ? applyMagneticRipple(remaining, target.trackId)
-          : remaining;
+      const idsToDelete = selectedClipIds.length > 0 ? selectedClipIds : [selectedClipId];
+      const affectedTrackIds = new Set(
+        prev.clips.filter((clip) => idsToDelete.includes(clip.id)).map((clip) => clip.trackId)
+      );
+      let finalClips = prev.clips.filter((clip) => !idsToDelete.includes(clip.id));
+      if (prev.magneticTimeline) {
+        for (const trackId of affectedTrackIds) {
+          finalClips = applyMagneticRipple(finalClips, trackId);
+        }
+      }
       return { ...prev, clips: finalClips };
     });
     setSelectedClipId(null);
-  }, [selectedClipId, commitProjectChange]);
+    setSelectedClipIds([]);
+  }, [selectedClipId, selectedClipIds, commitProjectChange]);
+
+  const handleSelectClip = useCallback((clipId: string | null, additive = false) => {
+    if (!clipId) {
+      setSelectedClipId(null);
+      setSelectedClipIds([]);
+      return;
+    }
+    setSelectedClipId(clipId);
+    setSelectedClipIds((ids) => {
+      if (!additive) return [clipId];
+      return ids.includes(clipId) ? ids.filter((id) => id !== clipId) : [...ids, clipId];
+    });
+  }, []);
 
   const handleMergeAdjacent = useCallback(() => {
     if (!selectedClip) return;
@@ -249,6 +322,25 @@ export default function App() {
       clips: mergeAdjacentClips(prev.clips, selectedClip.id, neighbor.id),
     }));
   }, [selectedClip, project.clips, commitProjectChange]);
+
+  const handleAddTimelineMarker = useCallback(() => {
+    commitProjectChange((prev) => ({
+      ...prev,
+      beatMarkers: addTimelineMarker(prev.beatMarkers, playheadRef.current),
+    }));
+  }, [commitProjectChange]);
+
+  const handleRemoveNearestTimelineMarker = useCallback(() => {
+    commitProjectChange((prev) => ({
+      ...prev,
+      beatMarkers: removeNearestTimelineMarker(prev.beatMarkers, playheadRef.current),
+    }));
+  }, [commitProjectChange]);
+
+  const handleJumpToNextTimelineMarker = useCallback(() => {
+    const nextMarker = findNextTimelineMarker(project.beatMarkers, playheadRef.current);
+    if (nextMarker !== null) setPlayheadTime(nextMarker);
+  }, [project.beatMarkers]);
 
   const handleManualSave = useCallback(async () => {
     setIsSaving(true);
@@ -288,6 +380,12 @@ export default function App() {
       } else if (e.key === 'd' || e.key === 'D') {
         e.preventDefault();
         handleDuplicateSelected();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        handleCopySelected();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        handlePasteClip();
       } else if (e.key === 'm' || e.key === 'M') {
         e.preventDefault();
         handleMergeAdjacent();
@@ -307,6 +405,8 @@ export default function App() {
   }, [
     handleSplitAtPlayhead,
     handleDuplicateSelected,
+    handleCopySelected,
+    handlePasteClip,
     handleMergeAdjacent,
     handleDeleteSelected,
     handleManualSave,
@@ -595,7 +695,7 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden">
+    <div className="h-dvh w-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden">
       {/* Top Bar + Workspace Utility Bar */}
       <TopHeader
         projectName={project.name}
@@ -622,33 +722,10 @@ export default function App() {
         }
       />
 
-      {/* Mobile CapCut / InShot Section Switcher (Visible on screens < 768px) */}
-      <div className="flex md:hidden items-center justify-around bg-white dark:bg-[#12141C] border-b border-slate-200 dark:border-[#232734] py-1.5 px-2 text-xs font-medium shrink-0">
-        {(
-          [
-            { id: 'preview', label: 'Player' },
-            { id: 'media', label: 'Media & AI' },
-            { id: 'timeline', label: 'Timeline' },
-            { id: 'inspector', label: 'Adjust' },
-          ] as const
-        ).map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => setMobilePanel(m.id)}
-            className={`px-3 py-1 rounded ${
-              mobilePanel === m.id
-                ? 'bg-cyan-400 text-slate-950 font-bold'
-                : 'text-slate-600 dark:text-slate-400'
-            }`}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
-
       {/* Upper Editor Area: Left Library Dock + Center Program Monitor + Right Properties Inspector */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      <div
+        className={`${mobilePanel === 'timeline' ? 'hidden md:flex' : 'flex'} flex-1 min-h-0 overflow-hidden`}
+      >
         {/* Left Dock Panel */}
         <div
           className={`${
@@ -883,7 +960,7 @@ export default function App() {
 
         {/* Center Video Compositor Preview */}
         <div
-          className={`${
+          className={`min-h-0 ${
             mobilePanel === 'preview' ? 'flex flex-1' : 'hidden'
           } md:flex md:flex-1 min-w-0`}
         >
@@ -891,6 +968,7 @@ export default function App() {
             aspectRatio={project.aspectRatio}
             customWidth={project.customWidth}
             customHeight={project.customHeight}
+            canvasBackgroundColor={project.canvasBackgroundColor}
             playheadTime={playheadTime}
             timelineDuration={timelineDuration}
             isPlaying={isPlaying}
@@ -911,6 +989,9 @@ export default function App() {
               );
             }}
             onToggleLoop={() => setLoopPlayback((l) => !l)}
+            onChangeCanvasBackground={(color) =>
+              commitProjectChange((prev) => ({ ...prev, canvasBackgroundColor: color }))
+            }
             onUpdateClipPosition={(clipId, newX, newY) => {
               commitProjectChange((prev) => ({
                 ...prev,
@@ -995,6 +1076,7 @@ export default function App() {
         >
           <InspectorPanel
             selectedClip={selectedClip}
+            onResetSelected={handleResetSelected}
             onUpdateClip={(clipId, updater) =>
               commitProjectChange((prev) => ({
                 ...prev,
@@ -1007,8 +1089,8 @@ export default function App() {
 
       {/* Bottom Multi-Track Editing Timeline (Always visible below Player on Mobile & Desktop like CapCut/InShot) */}
       <div
-        className={`${
-          mobilePanel === 'timeline' || mobilePanel === 'preview' ? 'block' : 'hidden'
+        className={`mobile-timeline-panel ${
+          mobilePanel === 'timeline' ? 'flex flex-1 min-h-0' : mobilePanel === 'preview' ? 'block' : 'hidden'
         } md:block`}
       >
         <TimelinePanel
@@ -1017,13 +1099,16 @@ export default function App() {
           playheadTime={playheadTime}
           timelineDuration={timelineDuration}
           selectedClipId={selectedClipId}
+          selectedClipIds={selectedClipIds}
           magneticTimeline={project.magneticTimeline}
           snappingEnabled={project.snappingEnabled}
           beatMarkers={project.beatMarkers}
           onSeek={(t) => setPlayheadTime(t)}
-          onSelectClip={setSelectedClipId}
+          onSelectClip={handleSelectClip}
           onSplitAtPlayhead={handleSplitAtPlayhead}
           onDuplicateSelected={handleDuplicateSelected}
+          onCopySelected={handleCopySelected}
+          onPasteClip={handlePasteClip}
           onDeleteSelected={handleDeleteSelected}
           onMergeAdjacent={handleMergeAdjacent}
           onToggleFreezeSelected={() => {
@@ -1061,6 +1146,9 @@ export default function App() {
           onToggleSnapping={() =>
             commitProjectChange((prev) => ({ ...prev, snappingEnabled: !prev.snappingEnabled }))
           }
+          onAddMarker={handleAddTimelineMarker}
+          onRemoveNearestMarker={handleRemoveNearestTimelineMarker}
+          onJumpToNextMarker={handleJumpToNextTimelineMarker}
           onUpdateTrack={(trackId, updater) =>
             commitProjectChange((prev) => ({
               ...prev,
@@ -1160,6 +1248,35 @@ export default function App() {
           }}
         />
       </div>
+
+      {/* InShot-style mobile editing dock */}
+      <nav
+        aria-label="Mobile editing tools"
+        className="flex md:hidden items-stretch gap-1 overflow-x-auto bg-white dark:bg-[#12141C] border-t border-slate-200 dark:border-[#232734] px-2 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] shrink-0"
+      >
+        {(
+          [
+            { id: 'preview', label: 'Preview' },
+            { id: 'media', label: 'Media' },
+            { id: 'timeline', label: 'Timeline' },
+            { id: 'inspector', label: 'Adjust' },
+          ] as const
+        ).map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => setMobilePanel(m.id)}
+            aria-current={mobilePanel === m.id ? 'page' : undefined}
+            className={`min-w-[4.75rem] flex-1 px-3 py-2 rounded-t-md text-[11px] font-semibold whitespace-nowrap transition-colors ${
+              mobilePanel === m.id
+                ? 'bg-cyan-400 text-slate-950'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1E2230]'
+            }`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </nav>
 
       {/* Modals */}
       <ProjectManagerModal

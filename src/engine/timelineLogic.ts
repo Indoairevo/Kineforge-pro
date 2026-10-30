@@ -105,6 +105,37 @@ export function calculateTimelineDuration(clips: TimelineClip[]): number {
   return Math.max(10, Number(maxEnd.toFixed(2)));
 }
 
+/** Adds a playhead marker unless an existing marker is already nearby. */
+export function addTimelineMarker(
+  markers: number[],
+  time: number,
+  minimumDistance: number = 0.05
+): number[] {
+  const safeTime = Math.max(0, Number.isFinite(time) ? Number(time.toFixed(3)) : 0);
+  if (markers.some((marker) => Math.abs(marker - safeTime) < minimumDistance)) {
+    return [...markers].sort((a, b) => a - b);
+  }
+  return [...markers, safeTime].sort((a, b) => a - b);
+}
+
+/** Removes the marker nearest to the playhead, preserving all other markers. */
+export function removeNearestTimelineMarker(markers: number[], time: number): number[] {
+  if (markers.length === 0) return [];
+  const nearestIndex = markers.reduce(
+    (bestIndex, marker, index, allMarkers) =>
+      Math.abs(marker - time) < Math.abs(allMarkers[bestIndex] - time) ? index : bestIndex,
+    0
+  );
+  return markers.filter((_, index) => index !== nearestIndex);
+}
+
+/** Finds the next marker after the playhead, wrapping to the first marker. */
+export function findNextTimelineMarker(markers: number[], time: number): number | null {
+  if (markers.length === 0) return null;
+  const sortedMarkers = [...markers].sort((a, b) => a - b);
+  return sortedMarkers.find((marker) => marker > time + 0.05) ?? sortedMarkers[0];
+}
+
 /**
  * Splits a target clip at the specified playhead time into two contiguous clips.
  * If splitTime is outside the clip's interior (within 0.15s margin of edges), returns original clips unchanged.
@@ -239,6 +270,28 @@ export function duplicateClipInTrack(
   };
 
   return [...clips, copy];
+}
+
+/** Assigns a shared group id to multiple clips without changing their timing or track. */
+export function groupClips(
+  clips: TimelineClip[],
+  clipIds: string[],
+  groupIdGenerator: () => string = () => `group_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+): TimelineClip[] {
+  const ids = new Set(clipIds);
+  if (ids.size < 2 || clips.filter((clip) => ids.has(clip.id)).length < 2) return clips;
+  const groupId = groupIdGenerator();
+  return clips.map((clip) => (ids.has(clip.id) ? { ...clip, groupId } : clip));
+}
+
+/** Removes grouping from the selected clips and any other clips in their selected groups. */
+export function ungroupClips(clips: TimelineClip[], clipIds: string[]): TimelineClip[] {
+  const selectedIds = new Set(clipIds);
+  const groupIds = new Set(
+    clips.filter((clip) => selectedIds.has(clip.id) && clip.groupId).map((clip) => clip.groupId as string)
+  );
+  if (groupIds.size === 0) return clips;
+  return clips.map((clip) => (clip.groupId && groupIds.has(clip.groupId) ? { ...clip, groupId: undefined } : clip));
 }
 
 /**

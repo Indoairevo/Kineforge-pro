@@ -58,7 +58,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   return (
     <div className="shrink-0 select-none">
       {/* Primary Top Bar following the strict 1-row, 3-zone contract */}
-      <header className="flex items-center justify-between gap-8 px-5 py-2.5 bg-white dark:bg-[#12141C] border-b border-slate-200 dark:border-[#232734]">
+      <header className="flex items-center justify-between gap-2 sm:gap-8 px-3 sm:px-5 py-2.5 bg-white dark:bg-[#12141C] border-b border-slate-200 dark:border-[#232734]">
         {/* Zone 1: Brand Title (Single text element wordmark) */}
         <a
           href="#workspace"
@@ -66,7 +66,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             e.preventDefault();
             onSelectNavSection('workspace');
           }}
-          className="text-base font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0 font-display"
+          className="text-sm sm:text-base font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0 font-display"
         >
           KineForge Studio
         </a>
@@ -141,13 +141,13 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             className="inline-flex items-center gap-2 px-4 py-1.5 text-xs font-bold text-slate-950 bg-cyan-400 hover:bg-cyan-300 rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-xs"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Export Video</span>
+            <span className="hidden sm:inline">Export Video</span>
           </button>
         </div>
       </header>
 
       {/* Secondary Contextual Workspace Utility Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-1.5 bg-slate-100 dark:bg-[#0D0F14] border-b border-slate-200 dark:border-[#232734] text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 px-2.5 sm:px-4 py-1.5 bg-slate-100 dark:bg-[#0D0F14] border-b border-slate-200 dark:border-[#232734] text-xs">
         {/* Left: Active Project Title Input & Database Save Control */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 w-full sm:w-auto">
           <button
@@ -193,7 +193,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         </div>
 
         {/* Center/Right: Undo/Redo, Aspect Ratio Preset, CapCut/InShot UI Mode Switcher & Theme */}
-        <div className="flex items-center gap-2 overflow-x-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-0.5 sm:pb-0">
           <div className="flex items-center bg-white dark:bg-[#171A24] border border-slate-200 dark:border-[#282D3E] rounded p-0.5">
             <button
               type="button"

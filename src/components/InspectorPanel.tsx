@@ -30,6 +30,7 @@ import {
 
 interface InspectorPanelProps {
   selectedClip: TimelineClip | null;
+  onResetSelected: () => void;
   onUpdateClip: (clipId: string, updater: (clip: TimelineClip) => TimelineClip) => void;
 }
 
@@ -37,6 +38,7 @@ type InspectorTab = 'transform' | 'color' | 'effects' | 'text' | 'audio';
 
 export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   selectedClip,
+  onResetSelected,
   onUpdateClip,
 }) => {
   const [activeTab, setActiveTab] = useState<InspectorTab>('transform');
@@ -162,6 +164,15 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
             {selectedClip.type.toUpperCase()} · Start {selectedClip.startTime.toFixed(2)}s · Dur {selectedClip.duration.toFixed(2)}s
           </p>
         </div>
+        <button
+          type="button"
+          onClick={onResetSelected}
+          title="Reset selected clip adjustments"
+          aria-label="Reset selected clip adjustments"
+          className="inline-flex items-center justify-center w-7 h-7 rounded border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-sky-500 hover:border-sky-500 cursor-pointer shrink-0"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* Inspector Sub-Navigation Tabs */}
@@ -342,6 +353,25 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                   onChange={(v) => updateTransform({ cropRight: v })}
                 />
               </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {(
+                  [
+                    { label: 'Fit', patch: { scale: 100, cropTop: 0, cropBottom: 0, cropLeft: 0, cropRight: 0 } },
+                    { label: 'Fill', patch: { scale: 118, cropTop: 0, cropBottom: 0, cropLeft: 0, cropRight: 0 } },
+                    { label: 'Crop', patch: { scale: 100, cropTop: 8, cropBottom: 8, cropLeft: 8, cropRight: 8 } },
+                    { label: 'Clear', patch: { cropTop: 0, cropBottom: 0, cropLeft: 0, cropRight: 0 } },
+                  ] as const
+                ).map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => updateTransform(preset.patch)}
+                    className="py-1.5 rounded border border-slate-200 dark:border-slate-800 text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:border-sky-500 hover:text-sky-500 cursor-pointer"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Speed, Slow/Fast Motion, Reverse & Freeze Frame */}
@@ -359,6 +389,22 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                   onUpdateClip(selectedClip.id, (c) => ({ ...c, speed: v }))
                 }
               />
+              <div className="grid grid-cols-5 gap-1.5">
+                {[0.25, 0.5, 1, 1.5, 2].map((speed) => (
+                  <button
+                    key={speed}
+                    type="button"
+                    onClick={() => onUpdateClip(selectedClip.id, (c) => ({ ...c, speed }))}
+                    className={`py-1.5 rounded border text-[11px] font-medium cursor-pointer ${
+                      selectedClip.speed === speed
+                        ? 'border-sky-500 bg-sky-500/10 text-sky-500'
+                        : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    {speed}x
+                  </button>
+                ))}
+              </div>
               <SliderRow
                 label="Clip Duration (s)"
                 value={Number(selectedClip.duration.toFixed(1))}
