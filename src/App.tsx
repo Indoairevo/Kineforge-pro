@@ -28,6 +28,7 @@ import {
   detectBeatMarkers,
   duplicateClipInTrack,
   findNextTimelineMarker,
+  groupClips,
   HistoryStack,
   mergeAdjacentClips,
   pushHistoryState,
@@ -36,6 +37,7 @@ import {
   splitClipAtTime,
   structuredCloneClip,
   trimClipBounds,
+  ungroupClips,
   undoHistoryState,
 } from './engine/timelineLogic';
 import {
@@ -307,6 +309,22 @@ export default function App() {
       return ids.includes(clipId) ? ids.filter((id) => id !== clipId) : [...ids, clipId];
     });
   }, []);
+
+  const handleGroupSelected = useCallback(() => {
+    if (selectedClipIds.length < 2) return;
+    commitProjectChange((prev) => ({
+      ...prev,
+      clips: groupClips(prev.clips, selectedClipIds),
+    }));
+  }, [selectedClipIds, commitProjectChange]);
+
+  const handleUngroupSelected = useCallback(() => {
+    if (selectedClipIds.length === 0) return;
+    commitProjectChange((prev) => ({
+      ...prev,
+      clips: ungroupClips(prev.clips, selectedClipIds),
+    }));
+  }, [selectedClipIds, commitProjectChange]);
 
   const handleMergeAdjacent = useCallback(() => {
     if (!selectedClip) return;
@@ -1109,6 +1127,8 @@ export default function App() {
           onDuplicateSelected={handleDuplicateSelected}
           onCopySelected={handleCopySelected}
           onPasteClip={handlePasteClip}
+          onGroupSelected={handleGroupSelected}
+          onUngroupSelected={handleUngroupSelected}
           onDeleteSelected={handleDeleteSelected}
           onMergeAdjacent={handleMergeAdjacent}
           onToggleFreezeSelected={() => {

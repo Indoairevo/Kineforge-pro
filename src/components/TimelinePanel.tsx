@@ -22,6 +22,8 @@ import {
   Clipboard,
   ClipboardPaste,
   Flag,
+  Link,
+  Unlink,
   SkipForward,
 } from 'lucide-react';
 import { TimelineClip, Track, TrackType } from '../types/editor';
@@ -43,6 +45,8 @@ interface TimelinePanelProps {
   onDuplicateSelected: () => void;
   onCopySelected: () => void;
   onPasteClip: () => void;
+  onGroupSelected: () => void;
+  onUngroupSelected: () => void;
   onDeleteSelected: () => void;
   onMergeAdjacent: () => void;
   onToggleFreezeSelected: () => void;
@@ -76,6 +80,8 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
   onDuplicateSelected,
   onCopySelected,
   onPasteClip,
+  onGroupSelected,
+  onUngroupSelected,
   onDeleteSelected,
   onMergeAdjacent,
   onToggleFreezeSelected,
@@ -244,6 +250,28 @@ export const TimelinePanel: React.FC<TimelinePanelProps> = ({
           >
             <ClipboardPaste className="w-3.5 h-3.5" />
             <span>Paste</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onGroupSelected}
+            disabled={selectedClipIds.length < 2}
+            title="Group selected clips"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-white dark:bg-[#1E2230] border border-slate-200 dark:border-[#2D3348] text-slate-800 dark:text-slate-100 disabled:opacity-40 hover:border-cyan-400 transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:cursor-not-allowed"
+          >
+            <Link className="w-3.5 h-3.5" />
+            <span>Group</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onUngroupSelected}
+            disabled={selectedClipIds.length === 0}
+            title="Ungroup selected clips"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-white dark:bg-[#1E2230] border border-slate-200 dark:border-[#2D3348] text-slate-800 dark:text-slate-100 disabled:opacity-40 hover:border-cyan-400 transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:cursor-not-allowed"
+          >
+            <Unlink className="w-3.5 h-3.5" />
+            <span>Ungroup</span>
           </button>
 
           <button
